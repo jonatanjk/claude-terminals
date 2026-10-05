@@ -1,0 +1,8 @@
+node_modules/
+*.log
+.env
+token
+state.json
+.claude-terminals/
+*.output
+PUBLISH-NOTES.md

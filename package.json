@@ -1,0 +1,22 @@
+{
+ "name": "claude-terminals",
+ "version": "1.0.0",
+ "description": "Tabbed, persistent Claude Code sessions in one Electron window, with an MCP server so one Claude session can open, message and monitor others (Windows)",
+ "main": "main.js",
+ "scripts": {
+  "start": "electron .",
+  "daemon": "node server.js"
+ },
+ "keywords": ["claude-code","mcp","electron","terminal"],
+ "author": "Jonatan Kawalek",
+ "license": "MIT",
+ "type": "commonjs",
+ "dependencies": {
+  "@homebridge/node-pty-prebuilt-multiarch": "^0.14.1",
+  "@xterm/addon-fit": "^0.11.0",
+  "@xterm/addon-webgl": "^0.19.0",
+  "@xterm/xterm": "^6.0.0",
+  "electron": "^44.5.1",
+  "ws": "^8.22.0"
+ }
+}
