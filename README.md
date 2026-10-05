@@ -2,14 +2,14 @@
 
 A small Electron app that keeps several [Claude Code](https://claude.com/claude-code) sessions open as tabs in one window, plus an MCP server so one Claude session can open, message and monitor the others.
 
-> **Windows only, as it stands.** It spawns Git Bash through a pty, and the launchers are `.vbs`/`.cmd` files. Porting would mean changing the shell path in `server.js` and the launchers. Hobby project, no warranty.
+> **Windows and macOS.** On Windows tabs run Git Bash; on macOS they run your login shell (`$SHELL`, usually zsh). Linux should work the same way as macOS but is untested. Hobby project, no warranty.
 
 ## What it does
 
 - **Tabbed, persistent sessions.** A background daemon (`server.js`) owns the ptys, so closing the window doesn't kill your sessions. Reopen the window and the tabs are back. Tab state is saved in `~/.claude-terminals/state.json`.
 - **Rename and recolour** tabs (9 colours).
 - **Status icon** per tab: busy (spinner) or waiting for you.
-- **Resume** earlier Claude conversations from a history picker, or open a plain Git Bash tab.
+- **Resume** earlier Claude conversations from a history picker, or open a plain shell tab (Git Bash on Windows).
 - **MCP server** (`mcp.js`) exposing the daemon to Claude:
 
   | Tool | Purpose |
@@ -26,28 +26,41 @@ A small Electron app that keeps several [Claude Code](https://claude.com/claude-
 
 ## Run it
 
-Requirements: Windows, Node.js, Git for Windows, and the `claude` CLI on your PATH.
+Requirements: Node.js and the `claude` CLI on your PATH, plus Git for Windows on Windows. On macOS, `npm install` may compile the pty module, which needs the Xcode command-line tools (`xcode-select --install`).
 
 ```
 npm install
 npm start          # Electron window; starts the daemon if it isn't running
 npm run daemon     # or just the daemon, no window
+npm test           # smoke test: starts a throwaway daemon and checks a shell tab runs a command
 ```
 
-Double-click `Claude Terminals.cmd` or `launch.vbs` (no console window) to launch from Explorer.
+On Windows, double-click `Claude Terminals.cmd` or `launch.vbs` (no console window) to launch from Explorer. On macOS, double-click `Claude Terminals.command` in Finder; it starts through an interactive login shell so `node` and `claude` are on PATH (including nvm/fnm set up in `~/.zshrc`).
 
 Register the MCP server with Claude Code (adjust the path):
 
 ```
-claude mcp add claude-terminals -- node C:/path/to/claude-terminals/mcp.js
+claude mcp add claude-terminals -- node C:/path/to/claude-terminals/mcp.js     # Windows
+claude mcp add claude-terminals -- node ~/path/to/claude-terminals/mcp.js       # macOS
 ```
+
+### Keyboard
+
+| Action | Windows | macOS |
+|---|---|---|
+| New Claude tab | Ctrl+Shift+` | Cmd+Shift+` |
+| Copy / paste | Ctrl+C (with a selection) / Ctrl+V | Cmd+C / Cmd+V |
+| Rename tab | F2 | F2 |
+| Reload / dev tools | Ctrl+Shift+R / Ctrl+Shift+I | Cmd+Shift+R / Cmd+Shift+I |
+
+On macOS, Ctrl+C and Ctrl+V go straight to the terminal (interrupt, and Claude Code's image paste).
 
 ## Configuration
 
 | Setting | Default | Notes |
 |---|---|---|
 | `CLAUDE_TERMINALS_PORT` | `47821` | Daemon port (set it for the daemon, window and MCP server alike) |
-| `CLAUDE_TERMINALS_BASH` | `C:/Program Files/Git/bin/bash.exe` | Git Bash location |
+| `CLAUDE_TERMINALS_BASH` | Windows: `C:/Program Files/Git/bin/bash.exe`; macOS/Linux: `$SHELL`, else `/bin/zsh` | Shell each tab runs (started with `-l -i`) |
 | Data directory | `~/.claude-terminals` | Holds `state.json` and an auto-generated `token`. Not in this repo; keep it private. |
 
 The daemon listens on `127.0.0.1` only. The API needs the token, which `mcp.js` reads from the data directory.
@@ -69,6 +82,8 @@ The skill's rules matter: worker messages are information, not approvals, and ri
 ```
 main.js  server.js  mcp.js  ui/index.html   the app
 launch.vbs  Claude Terminals.cmd            Windows launchers
+Claude Terminals.command                    macOS launcher
+test/smoke.js                               npm test
 skill/dispatch/                             the /dispatch skill
 examples/tasks.md                           example tracker
 ```

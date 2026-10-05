@@ -9,7 +9,9 @@ fs.mkdirSync(DATA, { recursive: true });
 const STATE = path.join(DATA, 'state.json'), TOKEN_FILE = path.join(DATA, 'token');
 if (!fs.existsSync(TOKEN_FILE)) fs.writeFileSync(TOKEN_FILE, crypto.randomBytes(24).toString('hex'));
 const TOKEN = fs.readFileSync(TOKEN_FILE, 'utf8').trim();
-const BASH = process.env.CLAUDE_TERMINALS_BASH || 'C:/Program Files/Git/bin/bash.exe';
+const IS_WIN = process.platform === 'win32';
+// Windows: Git Bash. macOS/Linux: the user's login shell. CLAUDE_TERMINALS_BASH overrides either.
+const SHELL = process.env.CLAUDE_TERMINALS_BASH || (IS_WIN ? 'C:/Program Files/Git/bin/bash.exe' : process.env.SHELL || '/bin/zsh');
 const MAX_BUF = 400 * 1024;
 const COLORS = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple', 'pink', 'white'];
 
@@ -50,7 +52,7 @@ function startPty(s, startup) {
   const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor', CLAUDE_TERMINALS: '1', CLAUDE_TERMINALS_ID: m.id };
   for (const k of Object.keys(env)) if (/^(CLAUDECODE|CLAUDE_CODE_|CLAUDE_AGENT|MCP_)/.test(k) && k !== 'CLAUDE_CODE_GIT_BASH_PATH') delete env[k];
   env.CLAUDE_CODE_FORCE_SESSION_PERSISTENCE = '1';
-  const p = pty.spawn(BASH, ['-l', '-i'], { name: 'xterm-256color', cwd: m.cwd, cols: s.cols, rows: s.rows, env });
+  const p = pty.spawn(SHELL, ['-l', '-i'], { name: 'xterm-256color', cwd: m.cwd, cols: s.cols, rows: s.rows, env });
   s.pty = p;
   p.onData(d => {
     if (m.kind === 'claude') trackState(s, d);
@@ -195,7 +197,8 @@ const server = http.createServer(async (req, res) => {
   if (req.headers.host && !/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(req.headers.host)) return json(res, 403, { error: 'host' });
   const p = u.pathname;
   if (p === '/' || p === '/index.html') {
-    const html = fs.readFileSync(path.join(__dirname, 'ui/index.html'), 'utf8').replace('__TOKEN__', TOKEN);
+    const html = fs.readFileSync(path.join(__dirname, 'ui/index.html'), 'utf8').replace('__TOKEN__', TOKEN)
+      .replace("'__PLATFORM__'", JSON.stringify(process.platform)).replace("'__HOME__'", JSON.stringify(os.homedir().replace(/\\/g, '/')));
     res.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' }); return res.end(html);
   }
   if (ASSETS[p]) { res.writeHead(200, { 'content-type': MIME[path.extname(p)] }); return fs.createReadStream(ASSETS[p]).pipe(res); }
