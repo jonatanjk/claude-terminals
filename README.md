@@ -35,7 +35,7 @@ npm run daemon     # or just the daemon, no window
 npm test           # smoke test: starts a throwaway daemon and checks a shell tab runs a command
 ```
 
-On Windows, double-click `Claude Terminals.cmd` or `launch.vbs` (no console window) to launch from Explorer. On macOS, double-click `Claude Terminals.app` in Finder (or drag it to the Dock); it starts Electron through an interactive login shell so `node` and `claude` are on PATH (including nvm/fnm set up in `~/.zshrc`), without opening a Terminal window.
+On Windows, double-click `Claude Terminals.cmd` or `launch.vbs` (no console window) to launch from Explorer. On macOS, double-click `Claude Terminals.app` in Finder (or drag it to the Dock); it starts Electron through an interactive login shell so `node` and `claude` are on PATH (including nvm/fnm set up in `~/.zshrc`), without opening a Terminal window. Keep the app inside the checkout (add it to the Dock rather than copying it to /Applications), and install with `git clone`: a zip download can be quarantined by Gatekeeper. Because the launcher runs your interactive shell config without a terminal, anything in `~/.zshrc` that needs one (auto-starting tmux, prompts) should be guarded with `[[ -t 0 ]]`. Launch output goes to `~/Library/Logs/claude-terminals.log`.
 
 Register the MCP server with Claude Code (adjust the path):
 
