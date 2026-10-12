@@ -1,0 +1,10 @@
+#!/bin/zsh -il
+# macOS launcher: double-click Claude Terminals.app in Finder. An interactive login shell, so node and claude are on PATH even when set up in ~/.zshrc (nvm, fnm).
+# Starts Electron detached and exits, so no Terminal window is involved and nothing is hung up when this script ends.
+root=${0:A:h:h:h:h}
+electron=$root/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron
+if [[ ! -x $electron ]]; then
+  osascript -e "display alert \"Claude Terminals is not installed\" message \"Run npm install in $root first.\"" >/dev/null
+  exit 1
+fi
+cd "$root" && nohup "$electron" . </dev/null >/dev/null 2>&1 &!

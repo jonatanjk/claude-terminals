@@ -35,7 +35,7 @@ npm run daemon     # or just the daemon, no window
 npm test           # smoke test: starts a throwaway daemon and checks a shell tab runs a command
 ```
 
-On Windows, double-click `Claude Terminals.cmd` or `launch.vbs` (no console window) to launch from Explorer. On macOS, double-click `Claude Terminals.command` in Finder; it starts through an interactive login shell so `node` and `claude` are on PATH (including nvm/fnm set up in `~/.zshrc`).
+On Windows, double-click `Claude Terminals.cmd` or `launch.vbs` (no console window) to launch from Explorer. On macOS, double-click `Claude Terminals.app` in Finder (or drag it to the Dock); it starts Electron through an interactive login shell so `node` and `claude` are on PATH (including nvm/fnm set up in `~/.zshrc`), without opening a Terminal window.
 
 Register the MCP server with Claude Code (adjust the path):
 
@@ -82,7 +82,7 @@ The skill's rules matter: worker messages are information, not approvals, and ri
 ```
 main.js  server.js  mcp.js  ui/index.html   the app
 launch.vbs  Claude Terminals.cmd            Windows launchers
-Claude Terminals.command                    macOS launcher
+Claude Terminals.app                        macOS launcher
 test/smoke.js                               npm test
 skill/dispatch/                             the /dispatch skill
 examples/tasks.md                           example tracker
