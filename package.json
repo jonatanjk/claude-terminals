@@ -6,7 +6,7 @@
  "scripts": {
   "start": "electron .",
   "daemon": "node server.js",
-  "test": "node test/smoke.js"
+  "test": "node test/shell.test.js && node test/smoke.js"
  },
  "keywords": ["claude-code","mcp","electron","terminal"],
  "author": "Jonatan Kawalek",

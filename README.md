@@ -2,14 +2,14 @@
 
 A small Electron app that keeps several [Claude Code](https://claude.com/claude-code) sessions open as tabs in one window, plus an MCP server so one Claude session can open, message and monitor the others.
 
-> **Windows and macOS.** On Windows tabs run Git Bash; on macOS they run your login shell (`$SHELL`, usually zsh). Linux should work the same way as macOS but is untested. Hobby project, no warranty.
+> **Windows and macOS.** On Windows tabs run Git Bash, or PowerShell if Git for Windows isn't installed; on macOS they run your login shell (`$SHELL`, usually zsh). Linux should work the same way as macOS but is untested. Hobby project, no warranty.
 
 ## What it does
 
 - **Tabbed, persistent sessions.** A background daemon (`server.js`) owns the ptys, so closing the window doesn't kill your sessions. Reopen the window and the tabs are back. Tab state is saved in `~/.claude-terminals/state.json`.
 - **Rename and recolour** tabs (9 colours).
 - **Status icon** per tab: busy (spinner) or waiting for you.
-- **Resume** earlier Claude conversations from a history picker, or open a plain shell tab (Git Bash on Windows).
+- **Resume** earlier Claude conversations from a history picker, or open a plain shell tab (Git Bash or PowerShell on Windows).
 - **MCP server** (`mcp.js`) exposing the daemon to Claude:
 
   | Tool | Purpose |
@@ -26,13 +26,13 @@ A small Electron app that keeps several [Claude Code](https://claude.com/claude-
 
 ## Run it
 
-Requirements: Node.js and the `claude` CLI on your PATH, plus Git for Windows on Windows. On macOS, `npm install` may compile the pty module, which needs the Xcode command-line tools (`xcode-select --install`).
+Requirements: Node.js and the `claude` CLI on your PATH. Git for Windows is recommended on Windows (Claude Code's Bash tool needs it); without it, tabs fall back to PowerShell 7 (`pwsh`) or Windows PowerShell. On macOS, `npm install` may compile the pty module, which needs the Xcode command-line tools (`xcode-select --install`).
 
 ```
 npm install
 npm start          # Electron window; starts the daemon if it isn't running
 npm run daemon     # or just the daemon, no window
-npm test           # smoke test: starts a throwaway daemon and checks a shell tab runs a command
+npm test           # unit tests, then a smoke test that starts a throwaway daemon and checks a shell tab runs a command
 ```
 
 On Windows, double-click `Claude Terminals.cmd` or `launch.vbs` (no console window) to launch from Explorer. On macOS, double-click `Claude Terminals.app` in Finder (or drag it to the Dock); it starts Electron through an interactive login shell so `node` and `claude` are on PATH (including nvm/fnm set up in `~/.zshrc`), without opening a Terminal window. Keep the app inside the checkout (add it to the Dock rather than copying it to /Applications), and install with `git clone`: a zip download can be quarantined by Gatekeeper. Because the launcher runs your interactive shell config without a terminal, anything in `~/.zshrc` that needs one (auto-starting tmux, prompts) should be guarded with `[[ -t 0 ]]`. Launch output goes to `~/Library/Logs/claude-terminals.log`.
@@ -60,7 +60,7 @@ On macOS, Ctrl+C and Ctrl+V go straight to the terminal (interrupt, and Claude C
 | Setting | Default | Notes |
 |---|---|---|
 | `CLAUDE_TERMINALS_PORT` | `47821` | Daemon port (set it for the daemon, window and MCP server alike) |
-| `CLAUDE_TERMINALS_BASH` | Windows: `C:/Program Files/Git/bin/bash.exe`; macOS/Linux: `$SHELL`, else `/bin/zsh` | Shell each tab runs (started with `-l -i`) |
+| `CLAUDE_TERMINALS_BASH` | Windows: `C:/Program Files/Git/bin/bash.exe` if present, else `pwsh.exe`, else `powershell.exe`; macOS/Linux: `$SHELL`, else `/bin/zsh` | Shell each tab runs. Bash-like shells start with `-l -i`; a `pwsh`/`powershell` path starts with `-NoLogo` |
 | Data directory | `~/.claude-terminals` | Holds `state.json` and an auto-generated `token`. Not in this repo; keep it private. |
 
 The daemon listens on `127.0.0.1` only. The API needs the token, which `mcp.js` reads from the data directory.
@@ -80,10 +80,10 @@ The skill's rules matter: worker messages are information, not approvals, and ri
 ## Layout
 
 ```
-main.js  server.js  mcp.js  ui/index.html   the app
+main.js  server.js  shell.js  mcp.js  ui/index.html   the app
 launch.vbs  Claude Terminals.cmd            Windows launchers
 Claude Terminals.app                        macOS launcher
-test/smoke.js                               npm test
+test/                                       npm test
 skill/dispatch/                             the /dispatch skill
 examples/tasks.md                           example tracker
 ```

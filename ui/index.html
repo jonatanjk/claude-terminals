@@ -54,7 +54,7 @@ body.mac #titlebar{padding:0 8px 0 80px!important}
 <script src="/xterm.js"></script><script src="/addon-fit.js"></script><script src="/addon-webgl.js"></script>
 <script>
 const TOKEN='__TOKEN__';
-const PLATFORM='__PLATFORM__',HOME_DIR='__HOME__',IS_WIN=PLATFORM==='win32',IS_MAC=PLATFORM==='darwin';
+const PLATFORM='__PLATFORM__',HOME_DIR='__HOME__',SHELL_LABEL='__SHELL_LABEL__',IS_WIN=PLATFORM==='win32',IS_MAC=PLATFORM==='darwin';
 const MOD=IS_MAC?'Cmd':'Ctrl',modKey=e=>IS_MAC?e.metaKey:e.ctrlKey;
 if(IS_MAC)document.body.classList.add('mac');
 const COLORS={red:'#f14c4c',orange:'#d18616',yellow:'#cca700',green:'#23d18b',cyan:'#29b8db',blue:'#3b8eea',purple:'#bc3fbc',pink:'#e56ad4',white:'#e5e5e5'};
@@ -216,7 +216,7 @@ function newSession(kind='claude',opts={}){send({t:'create',opts:{kind,...opts}}
 $('#add').onclick=()=>newSession();
 $('#more').onclick=e=>{const r=e.target.getBoundingClientRect();showMenu([
   {label:'New Claude session',run:()=>newSession()},
-  {label:IS_WIN?'New Git Bash':'New shell',run:()=>newSession('bash')},
+  {label:'New '+SHELL_LABEL,run:()=>newSession('bash')},
   {label:'Resume past Claude session…',run:pickSession},
   {label:'New Claude session in folder…',run:async()=>{const d=await ask('Folder path',IS_WIN?'C:/':HOME_DIR+'/');if(d)newSession('claude',{cwd:d})}}],r.left-150,r.bottom)};
 document.addEventListener('keydown',e=>{

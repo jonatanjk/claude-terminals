@@ -15,8 +15,8 @@ const str = d => ({ type: 'string', description: d });
 const TOOLS = [
   ['list_sessions', 'List all Claude Terminals tabs (id, name, color, cwd, claudeSessionId, alive).', S({}),
     () => api('GET', '/api/sessions')],
-  ['open_session', 'Open a new tab. kind=claude starts Claude Code (optionally resuming resumeId and/or with a first prompt); kind=bash opens plain Git Bash (optional command).',
-    S({ name: str('Tab name'), color: str('red|orange|yellow|green|cyan|blue|purple|pink|white'), cwd: str('Working directory, e.g. C:/projects/app'), kind: str('claude (default) or bash'),
+  ['open_session', 'Open a new tab. kind=claude starts Claude Code (optionally resuming resumeId and/or with a first prompt); kind=bash opens a plain shell tab: Git Bash or PowerShell on Windows, the login shell on macOS/Linux (optional command).',
+    S({ name: str('Tab name'), color: str('red|orange|yellow|green|cyan|blue|purple|pink|white'), cwd: str('Working directory, e.g. C:/projects/app or ~/projects/app'), kind: str('claude (default) or bash'),
       resumeId: str('Existing Claude session id to resume'), prompt: str('First prompt for a new claude session'), command: str('Startup command (bash kind)') }),
     a => api('POST', '/api/open', a)],
   ['close_session', 'Close (kill) a tab by id. The Claude conversation itself stays resumable via its claudeSessionId.', S({ id: str('tab id') }, ['id']),
