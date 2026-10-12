@@ -39,6 +39,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:13px "S
 #menu .lbl{padding:2px 22px;color:var(--dim);font-size:11px}
 #toast{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:#252526;border:1px solid #454545;padding:6px 12px;border-radius:5px;display:none}
 #status{padding:0 12px;height:22px;font-size:11px;color:var(--dim);display:flex;align-items:center;border-top:1px solid var(--border);flex:none}
+body.mac #titlebar{padding:0 8px 0 80px!important}
 #status .dot{width:7px;height:7px;border-radius:50%;margin-right:6px}
 </style></head>
 <body><div id="app">
@@ -53,12 +54,16 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:13px "S
 <script src="/xterm.js"></script><script src="/addon-fit.js"></script><script src="/addon-webgl.js"></script>
 <script>
 const TOKEN='__TOKEN__';
+const PLATFORM='__PLATFORM__',HOME_DIR='__HOME__',SHELL_LABEL='__SHELL_LABEL__',IS_WIN=PLATFORM==='win32',IS_MAC=PLATFORM==='darwin';
+const MOD=IS_MAC?'Cmd':'Ctrl',modKey=e=>IS_MAC?e.metaKey:e.ctrlKey;
+if(IS_MAC)document.body.classList.add('mac');
 const COLORS={red:'#f14c4c',orange:'#d18616',yellow:'#cca700',green:'#23d18b',cyan:'#29b8db',blue:'#3b8eea',purple:'#bc3fbc',pink:'#e56ad4',white:'#e5e5e5'};
 const THEME={background:'#181818',foreground:'#cccccc',cursor:'#cccccc',selectionBackground:'#264f78',
  black:'#000000',red:'#cd3131',green:'#0dbc79',yellow:'#e5e510',blue:'#2472c8',magenta:'#bc3fbc',cyan:'#11a8cd',white:'#e5e5e5',
  brightBlack:'#666666',brightRed:'#f14c4c',brightGreen:'#23d18b',brightYellow:'#f5f543',brightBlue:'#3b8eea',brightMagenta:'#d670d6',brightCyan:'#29b8db',brightWhite:'#e5e5e5'};
 let sessions=[],active=null,ws,terms={};
 const $=s=>document.querySelector(s);
+$('#add').title=`New Claude session (${MOD}+Shift+\`)`;
 const send=m=>ws&&ws.readyState===1&&ws.send(JSON.stringify(m));
 function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2500)}
 
@@ -78,11 +83,13 @@ function makeTerm(s){
   try{const gl=new WebglAddon.WebglAddon();gl.onContextLoss(()=>gl.dispose());xt.loadAddon(gl)}catch(e){}
   xt.attachCustomKeyEventHandler(ev=>{
     if(ev.type!=='keydown')return true;
+    if(!IS_MAC){ // macOS copies/pastes with Cmd via the Edit menu, so Ctrl+C/V reach the terminal
     if(ev.ctrlKey&&!ev.shiftKey&&ev.key==='c'&&xt.hasSelection()){navigator.clipboard.writeText(xt.getSelection());xt.clearSelection();return false}
     if(ev.ctrlKey&&ev.shiftKey&&ev.key==='C'){navigator.clipboard.writeText(xt.getSelection());return false}
     if(ev.ctrlKey&&!ev.altKey&&(ev.key==='v'||ev.key==='V')){ev.preventDefault();navigator.clipboard.readText().then(t=>t&&xt.paste(t));return false}
+    }
     if(ev.key==='Enter'&&ev.shiftKey){send({t:'input',id:s.id,d:'\x1b\r'});return false}
-    if(ev.ctrlKey&&ev.shiftKey&&ev.code==='Backquote'){ev.preventDefault();ev.stopPropagation();newSession();return false}
+    if(modKey(ev)&&ev.shiftKey&&ev.code==='Backquote'){ev.preventDefault();ev.stopPropagation();newSession();return false}
     if(ev.key==='F2'){ev.preventDefault();ev.stopPropagation();renaming=s.id;renderSide();return false}
     return true});
   xt.onData(d=>send({t:'input',id:s.id,d}));
@@ -209,12 +216,12 @@ function newSession(kind='claude',opts={}){send({t:'create',opts:{kind,...opts}}
 $('#add').onclick=()=>newSession();
 $('#more').onclick=e=>{const r=e.target.getBoundingClientRect();showMenu([
   {label:'New Claude session',run:()=>newSession()},
-  {label:'New Git Bash',run:()=>newSession('bash')},
+  {label:'New '+SHELL_LABEL,run:()=>newSession('bash')},
   {label:'Resume past Claude session…',run:pickSession},
-  {label:'New Claude session in folder…',run:async()=>{const d=await ask('Folder path','C:/');if(d)newSession('claude',{cwd:d})}}],r.left-150,r.bottom)};
+  {label:'New Claude session in folder…',run:async()=>{const d=await ask('Folder path',IS_WIN?'C:/':HOME_DIR+'/');if(d)newSession('claude',{cwd:d})}}],r.left-150,r.bottom)};
 document.addEventListener('keydown',e=>{
   if(e.key==='F2'&&active&&!renaming){renaming=active;renderSide()}
-  if(e.ctrlKey&&e.shiftKey&&e.code==='Backquote'){e.preventDefault();newSession()}
+  if(modKey(e)&&e.shiftKey&&e.code==='Backquote'){e.preventDefault();newSession()}
 });
 new ResizeObserver(()=>active&&refit(active)).observe($('#terms'));
 connect();

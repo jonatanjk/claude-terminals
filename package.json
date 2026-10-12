@@ -1,11 +1,12 @@
 {
  "name": "claude-terminals",
  "version": "1.0.0",
- "description": "Tabbed, persistent Claude Code sessions in one Electron window, with an MCP server so one Claude session can open, message and monitor others (Windows)",
+ "description": "Tabbed, persistent Claude Code sessions in one Electron window, with an MCP server so one Claude session can open, message and monitor others (Windows and macOS)",
  "main": "main.js",
  "scripts": {
   "start": "electron .",
-  "daemon": "node server.js"
+  "daemon": "node server.js",
+  "test": "node test/shell.test.js && node test/smoke.js"
  },
  "keywords": ["claude-code","mcp","electron","terminal"],
  "author": "Jonatan Kawalek",
