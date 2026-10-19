@@ -5,7 +5,8 @@ const pty = require('@homebridge/node-pty-prebuilt-multiarch');
 const { pickShell, claudeCmd: buildClaudeCmd } = require('./shell');
 
 const PORT = +process.env.CLAUDE_TERMINALS_PORT || 47821, HOST = '127.0.0.1';
-const DATA = path.join(os.homedir(), '.claude-terminals');
+// CLAUDE_TERMINALS_DATA lets a test daemon keep its own state.json and token away from the live one.
+const DATA = process.env.CLAUDE_TERMINALS_DATA || path.join(os.homedir(), '.claude-terminals');
 fs.mkdirSync(DATA, { recursive: true });
 const STATE = path.join(DATA, 'state.json'), TOKEN_FILE = path.join(DATA, 'token');
 if (!fs.existsSync(TOKEN_FILE)) fs.writeFileSync(TOKEN_FILE, crypto.randomBytes(24).toString('hex'));
@@ -48,7 +49,8 @@ function trackState(s, d) {
 
 function startPty(s, startup) {
   const m = s.meta;
-  const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor', CLAUDE_TERMINALS: '1', CLAUDE_TERMINALS_ID: m.id };
+  const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor', CLAUDE_TERMINALS: '1', CLAUDE_TERMINALS_ID: m.id,
+    CLAUDE_TERMINALS_PORT: String(PORT), CLAUDE_TERMINALS_DATA: DATA }; // so ct-ask / mcp.js in the tab reach this daemon
   for (const k of Object.keys(env)) if (/^(CLAUDECODE|CLAUDE_CODE_|CLAUDE_AGENT|MCP_)/.test(k) && k !== 'CLAUDE_CODE_GIT_BASH_PATH') delete env[k];
   env.CLAUDE_CODE_FORCE_SESSION_PERSISTENCE = '1';
   const p = pty.spawn(SHELL.file, SHELL.args, { name: 'xterm-256color', cwd: m.cwd, cols: s.cols, rows: s.rows, env });

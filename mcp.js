@@ -1,6 +1,7 @@
 // Minimal stdio MCP server letting Claude manage Claude Terminals tabs via the daemon's HTTP API.
 const fs = require('fs'), os = require('os'), path = require('path'), http = require('http'), { spawn } = require('child_process');
-const TOKEN = fs.readFileSync(path.join(os.homedir(), '.claude-terminals', 'token'), 'utf8').trim();
+const DATA = process.env.CLAUDE_TERMINALS_DATA || path.join(os.homedir(), '.claude-terminals');
+const TOKEN = fs.readFileSync(path.join(DATA, 'token'), 'utf8').trim();
 function api(method, p, body) {
   return new Promise((res, rej) => {
     const d = body ? JSON.stringify(body) : null;

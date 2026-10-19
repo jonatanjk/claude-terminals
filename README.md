@@ -61,7 +61,7 @@ On macOS, Ctrl+C and Ctrl+V go straight to the terminal (interrupt, and Claude C
 |---|---|---|
 | `CLAUDE_TERMINALS_PORT` | `47821` | Daemon port (set it for the daemon, window and MCP server alike) |
 | `CLAUDE_TERMINALS_BASH` | Windows: `C:/Program Files/Git/bin/bash.exe` if present, else `pwsh.exe`, else `powershell.exe`; macOS/Linux: `$SHELL`, else `/bin/zsh` | Shell each tab runs. Bash-like shells start with `-l -i`; a `pwsh`/`powershell` path starts with `-NoLogo` |
-| Data directory | `~/.claude-terminals` | Holds `state.json` and an auto-generated `token`. Not in this repo; keep it private. |
+| `CLAUDE_TERMINALS_DATA` | `~/.claude-terminals` | Data directory: holds `state.json` and an auto-generated `token`. Not in this repo; keep it private. Point a second (test) daemon at its own directory so it does not restore your live tabs. |
 
 The daemon listens on `127.0.0.1` only. The API needs the token, which `mcp.js` reads from the data directory.
 
