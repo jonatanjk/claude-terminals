@@ -91,7 +91,9 @@ function overlayIcon(n){ // Windows has no badge count, only a 16px overlay icon
   g.fillStyle='#fff';g.font='bold '+(n>9?17:22)+'px "Segoe UI",sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(n>99?'99+':String(n),16,17);
   return c.toDataURL();
 }
-const REPORT=/^\x1b\[(?:I|O|\d+;\d+R|[?>]?[\d;]*c)$/; // focus and cursor/device reports xterm sends on its own
+// Replies xterm sends on its own: focus, status/cursor/device reports, mode reports, OSC (colour) and DCS replies.
+const REPORT=/^\x1b(?:\[(?:I|O|\d*n|\d+;\d+R|[?>=]?[\d;]*c|\??[\d;]*\$y)|\][^\x07\x1b]*(?:\x07|\x1b\\)|P[^\x1b]*\x1b\\)+$/;
+const MODIFIER=new Set(['Shift','Control','Alt','Meta','CapsLock','Fn','OS','Super','Hyper']);
 function makeTerm(s){
   const el=document.createElement('div');el.className='term';el.dataset.id=s.id;$('#terms').appendChild(el);
   const xt=new Terminal({theme:THEME,fontFamily:'"Cascadia Mono",Consolas,"Courier New",monospace',fontSize:14,cursorBlink:true,scrollback:10000,allowProposedApi:true,macOptionIsMeta:true});
@@ -101,7 +103,8 @@ function makeTerm(s){
   el.addEventListener('paste',()=>{userAt=Date.now()},true);
   xt.attachCustomKeyEventHandler(ev=>{
     if(ev.type!=='keydown')return true;
-    userAt=Date.now();
+    const copy=(IS_MAC?ev.metaKey:ev.ctrlKey)&&(ev.key==='c'||ev.key==='C');
+    if(!MODIFIER.has(ev.key)&&!copy)userAt=Date.now(); // a bare modifier or a copy shortcut is not input
     if(!IS_MAC){ // macOS copies/pastes with Cmd via the Edit menu, so Ctrl+C/V reach the terminal
     if(ev.ctrlKey&&!ev.shiftKey&&ev.key==='c'&&xt.hasSelection()){navigator.clipboard.writeText(xt.getSelection());xt.clearSelection();return false}
     if(ev.ctrlKey&&ev.shiftKey&&ev.key==='C'){navigator.clipboard.writeText(xt.getSelection());return false}
