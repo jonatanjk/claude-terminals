@@ -5,7 +5,8 @@ const { spawn } = require('child_process'), fs = require('fs'), os = require('os
 const { pickShell } = require('../shell');
 const PORT = 47900 + Math.floor(Math.random() * 90);
 const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-smoke-'));
-const env = { ...process.env, HOME, USERPROFILE: HOME, CLAUDE_TERMINALS_PORT: String(PORT) };
+// Set the data directory explicitly: a tab exports its own daemon's CLAUDE_TERMINALS_DATA, which must not leak in here.
+const env = { ...process.env, HOME, USERPROFILE: HOME, CLAUDE_TERMINALS_PORT: String(PORT), CLAUDE_TERMINALS_DATA: path.join(HOME, '.claude-terminals') };
 // Arithmetic, so the echoed command line itself can't match CT_OK_42.
 const PROBE = pickShell({ env }).flavour === 'powershell' ? 'echo ("CT_OK_" + 6*7)' : 'echo CT_OK_$((6*7))';
 const daemon = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env, stdio: ['ignore', 'pipe', 'pipe'] });

@@ -9,6 +9,7 @@ A small Electron app that keeps several [Claude Code](https://claude.com/claude-
 - **Tabbed, persistent sessions.** A background daemon (`server.js`) owns the ptys, so closing the window doesn't kill your sessions. Reopen the window and the tabs are back. Tab state is saved in `~/.claude-terminals/state.json`.
 - **Rename and recolour** tabs (9 colours).
 - **Status icon** per tab: busy (spinner) or waiting for you.
+- **Ask badges.** A session that needs you raises an ask; its tab gets a red count (Slack-style) and the app's Dock/taskbar icon shows the total. See [Ask badges](#ask-badges).
 - **Resume** earlier Claude conversations from a history picker, or open a plain shell tab (Git Bash or PowerShell on Windows).
 - **MCP server** (`mcp.js`) exposing the daemon to Claude:
 
@@ -21,6 +22,7 @@ A small Electron app that keeps several [Claude Code](https://claude.com/claude-
   | `restart_session` | Restart a tab's shell; Claude tabs resume their conversation |
   | `send_input` | Type text into a tab |
   | `read_output` | Read a tab's recent output (ANSI stripped) |
+  | `ask_user` | Raise an ask for the calling tab: red count on the tab and the Dock (`summary`; optional `session`) |
 
   Claude Code's native peer messaging (`ListAgents` / `SendMessage`) works alongside this between the sessions you open.
 
@@ -55,13 +57,60 @@ claude mcp add claude-terminals -- node ~/path/to/claude-terminals/mcp.js       
 
 On macOS, Ctrl+C and Ctrl+V go straight to the terminal (interrupt, and Claude Code's image paste).
 
+## Ask badges
+
+A Claude session decides when it needs you (an approval, a decision, a credential, an answer) and raises an ask with a one-line summary. You see a red count next to that tab in the session list, the total on the Dock icon (macOS), taskbar overlay (Windows) or launcher badge (Linux), and the window title becomes `(n) Claude Terminals`. Hover the pill for the latest summary, open the tab and ask the session what it needs.
+
+**Clear rule.** A tab's asks reset to 0 when you type (or paste) into that tab while it is the focused tab. Output alone does not clear them, nor does selecting the tab, nor input sent by another session through `send_input` or `/api/input`. `ct-ask --clear` and `/api/ask/clear` clear them explicitly. Counts survive a daemon restart (they are stored with the tab in `state.json`).
+
+**From inside a tab** (every tab has `$CLAUDE_TERMINALS_ID`, `$CLAUDE_TERMINALS_PORT` and `$CLAUDE_TERMINALS_DATA` set):
+
+```
+bin/ct-ask "Approve the prod deploy? It needs your SSO login"   # prints: ask raised: 1 open
+bin/ct-ask --clear                                             # prints: asks cleared
+```
+
+`ct-ask` reads the token from the data directory and never prints it. Outside a Claude Terminals tab it fails with `not inside a Claude Terminals tab`. Put it on your PATH with, for example, `ln -s ~/path/to/claude-terminals/bin/ct-ask /usr/local/bin/ct-ask`.
+
+**From Claude via MCP**, call `ask_user` with `summary`. The MCP server runs inside the tab, so it raises the ask for that tab; pass `session` (a tab id from `list_sessions`) to raise one for another tab.
+
+**HTTP API** (token in the `x-token` header, like the other routes):
+
+| Route | Body | Result |
+|---|---|---|
+| `POST /api/ask` | `{"session": "<tab id>", "summary": "<one line>"}` | Adds one ask, stores the summary (whitespace collapsed, cut to 200 characters) and its time. `200 {session, asks, ask_summary, ask_at, total}`; `400` without a summary; `404` for an unknown tab; `401` for a bad token |
+| `POST /api/ask/clear` | `{"session": "<tab id>"}` | Resets the tab's asks to 0 |
+
+`GET /api/sessions` includes `asks`, `ask_summary` and `ask_at` for each tab.
+
+**Raise an ask whenever Claude Code is waiting for you.** Claude Code's `Notification` hook fires when it needs your permission or has been idle waiting for input. To turn those into asks, add something like this to `~/.claude/settings.json` (adjust the path; the guard keeps it silent in sessions outside Claude Terminals):
+
+```json
+{
+  "hooks": {
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$CLAUDE_TERMINALS_ID\" ] && ~/path/to/claude-terminals/bin/ct-ask \"Claude is waiting for you\" >/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Each notification adds one to the count, and typing in the tab clears it. To have Claude raise asks itself, with a summary of what it needs, tell it so in your `CLAUDE.md` (for example: "When you need my input, a decision or an approval, run `ct-ask \"<what and why>\"` or call `ask_user`, then wait").
+
 ## Configuration
 
 | Setting | Default | Notes |
 |---|---|---|
 | `CLAUDE_TERMINALS_PORT` | `47821` | Daemon port (set it for the daemon, window and MCP server alike) |
 | `CLAUDE_TERMINALS_BASH` | Windows: `C:/Program Files/Git/bin/bash.exe` if present, else `pwsh.exe`, else `powershell.exe`; macOS/Linux: `$SHELL`, else `/bin/zsh` | Shell each tab runs. Bash-like shells start with `-l -i`; a `pwsh`/`powershell` path starts with `-NoLogo` |
-| Data directory | `~/.claude-terminals` | Holds `state.json` and an auto-generated `token`. Not in this repo; keep it private. |
+| `CLAUDE_TERMINALS_DATA` | `~/.claude-terminals` | Data directory: holds `state.json` and an auto-generated `token`. Not in this repo; keep it private. Point a second (test) daemon at its own directory so it does not restore your live tabs. |
 
 The daemon listens on `127.0.0.1` only. The API needs the token, which `mcp.js` reads from the data directory.
 
@@ -80,7 +129,8 @@ The skill's rules matter: worker messages are information, not approvals, and ri
 ## Layout
 
 ```
-main.js  server.js  shell.js  mcp.js  ui/index.html   the app
+main.js  preload.js  server.js  shell.js  mcp.js  ui/index.html   the app
+bin/ct-ask                                  raise or clear an ask from a tab
 launch.vbs  Claude Terminals.cmd            Windows launchers
 Claude Terminals.app                        macOS launcher
 test/                                       npm test

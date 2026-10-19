@@ -25,6 +25,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:13px "S
 @keyframes sp{to{transform:rotate(360deg)}}
 .row .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row.dead .name{opacity:.55;font-style:italic}
+.row .badge{flex:none;min-width:16px;height:16px;padding:0 5px;border-radius:8px;background:#e51400;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center}
 .row .acts{display:none;gap:2px}
 .row:hover .acts,.row.sel .acts{display:flex}
 .row .acts .ib{width:20px;height:20px;font-size:13px}
@@ -72,27 +73,48 @@ function connect(){
   ws.onopen=()=>{$('#sdot').style.background='#23d18b';$('#stxt').textContent='connected';for(const id in terms){terms[id].attached=false}};
   ws.onclose=()=>{$('#sdot').style.background='#e51400';$('#stxt').textContent='disconnected — retrying';setTimeout(connect,1000)};
   ws.onmessage=e=>{const m=JSON.parse(e.data);
-    if(m.t==='sessions'){sessions=m.sessions;sync()}
+    if(m.t==='sessions'){sessions=m.sessions;sync();showTotal()}
     else if(m.t==='replay'){const t=terms[m.id];if(t){t.xt.reset();t.xt.write(m.d);}}
     else if(m.t==='data'){const t=terms[m.id];t&&t.xt.write(m.d)}};
 }
+// Total open asks across tabs -> window title, and the Dock/taskbar badge when running in the Electron window.
+function showTotal(){
+  const n=sessions.reduce((a,s)=>a+(s.asks||0),0);
+  document.title=(n?`(${n}) `:'')+'Claude Terminals';
+  if(showTotal.n===n)return;showTotal.n=n;
+  const d=window.ctDesktop;if(!d)return;
+  d.setBadge(n,IS_WIN&&n?overlayIcon(n):null);
+}
+function overlayIcon(n){ // Windows has no badge count, only a 16px overlay icon on the taskbar button
+  const c=document.createElement('canvas');c.width=c.height=32;const g=c.getContext('2d');
+  g.fillStyle='#e51400';g.beginPath();g.arc(16,16,16,0,Math.PI*2);g.fill();
+  g.fillStyle='#fff';g.font='bold '+(n>9?17:22)+'px "Segoe UI",sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(n>99?'99+':String(n),16,17);
+  return c.toDataURL();
+}
+// Replies xterm sends on its own: focus, status/cursor/device reports, mode reports, OSC (colour) and DCS replies.
+const REPORT=/^\x1b(?:\[(?:I|O|\d*n|\d+;\d+R|[?>=]?[\d;]*c|\??[\d;]*\$y)|\][^\x07\x1b]*(?:\x07|\x1b\\)|P[^\x1b]*\x1b\\)+$/;
+const MODIFIER=new Set(['Shift','Control','Alt','Meta','CapsLock','Fn','OS','Super','Hyper']);
 function makeTerm(s){
   const el=document.createElement('div');el.className='term';el.dataset.id=s.id;$('#terms').appendChild(el);
   const xt=new Terminal({theme:THEME,fontFamily:'"Cascadia Mono",Consolas,"Courier New",monospace',fontSize:14,cursorBlink:true,scrollback:10000,allowProposedApi:true,macOptionIsMeta:true});
   const fit=new FitAddon.FitAddon();xt.loadAddon(fit);xt.open(el);
   try{const gl=new WebglAddon.WebglAddon();gl.onContextLoss(()=>gl.dispose());xt.loadAddon(gl)}catch(e){}
+  let userAt=0; // last keystroke or paste in this tab: only then is input the user's, which clears the tab's asks
+  el.addEventListener('paste',()=>{userAt=Date.now()},true);
   xt.attachCustomKeyEventHandler(ev=>{
     if(ev.type!=='keydown')return true;
+    const copy=(IS_MAC?ev.metaKey:ev.ctrlKey)&&(ev.key==='c'||ev.key==='C');
+    if(!MODIFIER.has(ev.key)&&!copy)userAt=Date.now(); // a bare modifier or a copy shortcut is not input
     if(!IS_MAC){ // macOS copies/pastes with Cmd via the Edit menu, so Ctrl+C/V reach the terminal
     if(ev.ctrlKey&&!ev.shiftKey&&ev.key==='c'&&xt.hasSelection()){navigator.clipboard.writeText(xt.getSelection());xt.clearSelection();return false}
     if(ev.ctrlKey&&ev.shiftKey&&ev.key==='C'){navigator.clipboard.writeText(xt.getSelection());return false}
     if(ev.ctrlKey&&!ev.altKey&&(ev.key==='v'||ev.key==='V')){ev.preventDefault();navigator.clipboard.readText().then(t=>t&&xt.paste(t));return false}
     }
-    if(ev.key==='Enter'&&ev.shiftKey){send({t:'input',id:s.id,d:'\x1b\r'});return false}
+    if(ev.key==='Enter'&&ev.shiftKey){send({t:'input',id:s.id,d:'\x1b\r',user:true});return false}
     if(modKey(ev)&&ev.shiftKey&&ev.code==='Backquote'){ev.preventDefault();ev.stopPropagation();newSession();return false}
     if(ev.key==='F2'){ev.preventDefault();ev.stopPropagation();renaming=s.id;renderSide();return false}
     return true});
-  xt.onData(d=>send({t:'input',id:s.id,d}));
+  xt.onData(d=>send({t:'input',id:s.id,d,user:active===s.id&&document.hasFocus()&&Date.now()-userAt<1000&&!REPORT.test(d)}));
   xt.onResize(({cols,rows})=>send({t:'resize',id:s.id,cols,rows}));
   terms[s.id]={xt,fit,el,attached:false};
 }
@@ -138,6 +160,8 @@ function renderSide(){
     }else{
       const n=document.createElement('span');n.className='name';n.textContent=s.name;n.title=s.name+(s.alive?'':' (exited)')+'\n'+s.cwd;r.appendChild(n);
     }
+    if(s.asks>0){const b=document.createElement('span');b.className='badge';b.textContent=s.asks>99?'99+':s.asks;
+      b.title=(s.ask_summary||'Needs you')+(s.ask_at?'\n'+new Date(s.ask_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'')+'\nType in the tab to clear';r.appendChild(b)}
     const a=document.createElement('span');a.className='acts';
     a.innerHTML='<button class="ib" title="Rename (F2)" data-a="ren">✎</button><button class="ib" title="Kill Terminal" data-a="kill">🗑</button>';
     r.appendChild(a);
