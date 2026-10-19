@@ -29,6 +29,13 @@ const TOOLS = [
     a => api('POST', '/api/input/' + a.id, { text: a.text, enter: a.enter })],
   ['read_output', 'Read the recent terminal output of a tab (ANSI stripped).', S({ id: str('tab id'), chars: { type: 'number', description: 'max chars, default 4000' } }, ['id']),
     a => api('GET', `/api/output/${a.id}?chars=${a.chars || 4000}`)],
+  ['ask_user', 'Ask the human for something: puts a red count on this tab and on the app\'s Dock/taskbar icon until they type into the tab. Call it whenever you need input, a decision or an approval from them, then wait. summary is one line saying what you need and why; the user will open the tab and ask you for the detail.',
+    S({ summary: str('One line, at most ~200 characters: what you need from the user and why'), session: str('Tab id; defaults to the tab this MCP server runs in ($CLAUDE_TERMINALS_ID)') }, ['summary']),
+    a => {
+      const session = a.session || process.env.CLAUDE_TERMINALS_ID;
+      if (!session) return Promise.resolve({ error: 'not inside a Claude Terminals tab; pass session (a tab id from list_sessions)' });
+      return api('POST', '/api/ask', { session, summary: a.summary });
+    }],
   ['restart_session', 'Restart a tab\'s shell (claude tabs resume their conversation).', S({ id: str('tab id') }, ['id']),
     a => api('POST', '/api/restart/' + a.id, {})],
 ];
@@ -48,7 +55,7 @@ async function handle(m) {
   if (m.method === 'tools/call') {
     const t = TOOLS.find(x => x[0] === m.params.name);
     if (!t) return reply(m.id, null, { code: -32602, message: 'unknown tool' });
-    try { const r = await t[3](m.params.arguments || {}); reply(m.id, { content: [{ type: 'text', text: JSON.stringify(r, null, 1) }] }); }
+    try { const r = await t[3](m.params.arguments || {}); reply(m.id, { ...(r && r.error ? { isError: true } : {}), content: [{ type: 'text', text: JSON.stringify(r, null, 1) }] }); }
     catch (e) { reply(m.id, { isError: true, content: [{ type: 'text', text: 'Claude Terminals daemon not reachable (' + e.message + '). Start the app first.' }] }); }
     return;
   }

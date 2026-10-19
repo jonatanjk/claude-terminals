@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+// ct-ask "<what I need and why>"  raise an ask for this Claude Terminals tab (red count on the tab and the Dock)
+// ct-ask --clear                  clear this tab's asks
+// Reads the daemon token from the data directory and never prints it.
+const fs = require('fs'), os = require('os'), path = require('path'), http = require('http');
+
+const die = (msg, code = 1) => { process.stderr.write('ct-ask: ' + msg + '\n'); process.exit(code); };
+const args = process.argv.slice(2);
+const clear = args[0] === '--clear';
+const summary = args.join(' ').trim();
+const usage = 'usage: ct-ask "<what you need from the user and why>" | ct-ask --clear';
+if (args[0] === '-h' || args[0] === '--help') { console.log(usage); process.exit(0); }
+if (!clear && !summary) die(usage, 2);
+
+const session = process.env.CLAUDE_TERMINALS_ID;
+if (!session) die('not inside a Claude Terminals tab ($CLAUDE_TERMINALS_ID is unset)');
+const DATA = process.env.CLAUDE_TERMINALS_DATA || path.join(os.homedir(), '.claude-terminals');
+let token;
+try { token = fs.readFileSync(path.join(DATA, 'token'), 'utf8').trim(); } catch { die('cannot read the daemon token in ' + DATA); }
+const port = +process.env.CLAUDE_TERMINALS_PORT || 47821;
+
+const req = http.request({ host: '127.0.0.1', port, path: clear ? '/api/ask/clear' : '/api/ask', method: 'POST',
+  headers: { 'x-token': token, 'content-type': 'application/json' } }, res => {
+  let b = ''; res.on('data', c => b += c); res.on('end', () => {
+    let j = {}; try { j = JSON.parse(b); } catch {}
+    if (res.statusCode !== 200) die(`daemon refused (${res.statusCode}): ${j.error || b}`);
+    console.log(clear ? 'asks cleared' : `ask raised: ${j.asks} open`);
+  });
+});
+req.on('error', e => die(`Claude Terminals daemon not reachable on port ${port} (${e.code || e.message})`));
+req.setTimeout(5000, () => req.destroy(new Error('timeout')));
+req.end(JSON.stringify(clear ? { session } : { session, summary }));
