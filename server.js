@@ -127,6 +127,7 @@ function create(o = {}, restoring = false) {
     cwd: (o.cwd || os.homedir()).replace(/\\/g, '/'),
     claudeSessionId: kind === 'claude' ? (o.resumeId || o.claudeSessionId || crypto.randomUUID()) : undefined,
     args: o.args,
+    asks: +o.asks || 0, ask_summary: o.ask_summary || '', ask_at: o.ask_at || 0,
   };
   let startup;
   if (kind === 'claude') {
@@ -172,6 +173,23 @@ function restart(s) {
     broadcast({ t: 'sessions', sessions: listMeta() });
   }, 300);
 }
+// ---- asks: a session asks for its user; the tab and the Dock show a red count until the user types into it ----
+const ASK_MAX = 200;
+const totalAsks = () => [...sessions.values()].reduce((n, s) => n + (s.meta.asks || 0), 0);
+function raiseAsk(s, summary) {
+  const t = summary.replace(/\s+/g, ' ').trim();
+  s.meta.asks = (s.meta.asks || 0) + 1;
+  s.meta.ask_summary = t.length > ASK_MAX ? t.slice(0, ASK_MAX - 1) + '\u2026' : t;
+  s.meta.ask_at = Date.now();
+  save(); broadcast({ t: 'sessions', sessions: listMeta() });
+}
+function clearAsks(s) {
+  if (!s.meta.asks && !s.meta.ask_summary) return;
+  s.meta.asks = 0; s.meta.ask_summary = ''; s.meta.ask_at = 0;
+  save(); broadcast({ t: 'sessions', sessions: listMeta() });
+}
+const askReply = s => ({ session: s.meta.id, asks: s.meta.asks, ask_summary: s.meta.ask_summary, ask_at: s.meta.ask_at, total: totalAsks() });
+
 const ANSI = /\x1b\[[0-9;?]*[ -\/]*[@-~]|\x1b\][^\x07\x1b]*(\x07|\x1b\\)|\x1b[()][A-Za-z0-9]/g;
 const strip = s => s.replace(ANSI, '');
 
@@ -212,6 +230,14 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/sessions') return json(res, 200, listMeta());
     if (p === '/api/history') return json(res, 200, history(+u.searchParams.get('limit') || 30));
     if (p === '/api/open') return json(res, 200, publicMeta(create(b)));
+    if (p === '/api/ask' || p === '/api/ask/clear') {
+      if (req.method !== 'POST') return json(res, 405, { error: 'POST only' });
+      const s = sessions.get(String(b.session || ''));
+      if (!s) return json(res, 404, { error: 'no such session' });
+      if (p === '/api/ask/clear') { clearAsks(s); return json(res, 200, askReply(s)); }
+      if (typeof b.summary !== 'string' || !b.summary.trim()) return json(res, 400, { error: 'summary (one line: what you need and why) is required' });
+      raiseAsk(s, b.summary); return json(res, 200, askReply(s));
+    }
     const m = p.match(/^\/api\/(close|rename|input|output|restart)\/([\w-]+)$/);
     if (m) {
       const [, act, id] = m; const s = sessions.get(id);
@@ -247,7 +273,9 @@ wss.on('connection', ws => {
       case 'attach': if (s) { s.clients.add(ws); ws.send(JSON.stringify({ t: 'replay', id: s.meta.id, d: s.buf })); } break;
       case 'dbg': fs.appendFileSync(path.join(DATA,'dbg.log'), JSON.stringify(m) + String.fromCharCode(10)); break;
       case 'detach': if (s) s.clients.delete(ws); break;
-      case 'input': if (s && s.pty) s.pty.write(m.d); break;
+      // user: the UI saw a keystroke or paste in the focused tab, so the user is attending to it; terminal reports and
+      // API input from other sessions carry no flag and leave the asks alone.
+      case 'input': if (s && s.pty) { s.pty.write(m.d); if (m.user) clearAsks(s); } break;
       case 'resize': if (s && s.pty && m.cols > 1 && m.rows > 1) { s.cols = m.cols; s.rows = m.rows; try { s.pty.resize(m.cols, m.rows); } catch {} } break;
       case 'create': create(m.opts || {}); break;
       case 'close': kill(m.id); break;
