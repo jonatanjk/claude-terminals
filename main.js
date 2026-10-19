@@ -1,5 +1,5 @@
 const { app, BrowserWindow, Menu, shell, ipcMain, nativeImage } = require('electron');
-const path = require('path'), http = require('http'), { spawn } = require('child_process');
+const path = require('path'), os = require('os'), http = require('http'), { spawn } = require('child_process');
 const IS_MAC = process.platform === 'darwin';
 const URL_ = 'http://127.0.0.1:' + (process.env.CLAUDE_TERMINALS_PORT || 47821) + '/';
 function up() { return new Promise(r => { const q = http.get(URL_ + 'xterm.css', x => { x.resume(); r(true); }); q.on('error', () => r(false)); q.setTimeout(800, () => { q.destroy(); r(false); }); }); }
@@ -11,7 +11,9 @@ async function ensureDaemon() {
 }
 // A window pointed at a test daemon (CLAUDE_TERMINALS_DATA) gets its own profile, so its single-instance lock
 // does not hand off to, or block, the live app.
-if (process.env.CLAUDE_TERMINALS_DATA) app.setPath('userData', path.join(process.env.CLAUDE_TERMINALS_DATA, 'electron'));
+// Tabs export the default directory too, so only a different one counts: launching from a live tab keeps the shared lock.
+const DATA = path.resolve(process.env.CLAUDE_TERMINALS_DATA || path.join(os.homedir(), '.claude-terminals'));
+if (DATA !== path.resolve(os.homedir(), '.claude-terminals')) app.setPath('userData', path.join(DATA, 'electron'));
 if (!app.requestSingleInstanceLock()) app.quit();
 // Total open asks from the UI -> Dock badge (macOS), badge count (Linux), taskbar overlay icon (Windows).
 ipcMain.on('ct-badge', (e, n, overlay) => {

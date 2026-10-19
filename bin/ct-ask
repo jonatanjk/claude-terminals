@@ -14,7 +14,7 @@ if (!clear && !summary) die(usage, 2);
 
 const session = process.env.CLAUDE_TERMINALS_ID;
 if (!session) die('not inside a Claude Terminals tab ($CLAUDE_TERMINALS_ID is unset)');
-const DATA = process.env.CLAUDE_TERMINALS_DATA || path.join(os.homedir(), '.claude-terminals');
+const DATA = path.resolve(process.env.CLAUDE_TERMINALS_DATA || path.join(os.homedir(), '.claude-terminals'));
 let token;
 try { token = fs.readFileSync(path.join(DATA, 'token'), 'utf8').trim(); } catch { die('cannot read the daemon token in ' + DATA); }
 const port = +process.env.CLAUDE_TERMINALS_PORT || 47821;

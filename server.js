@@ -6,7 +6,7 @@ const { pickShell, claudeCmd: buildClaudeCmd } = require('./shell');
 
 const PORT = +process.env.CLAUDE_TERMINALS_PORT || 47821, HOST = '127.0.0.1';
 // CLAUDE_TERMINALS_DATA lets a test daemon keep its own state.json and token away from the live one.
-const DATA = process.env.CLAUDE_TERMINALS_DATA || path.join(os.homedir(), '.claude-terminals');
+const DATA = path.resolve(process.env.CLAUDE_TERMINALS_DATA || path.join(os.homedir(), '.claude-terminals'));
 fs.mkdirSync(DATA, { recursive: true });
 const STATE = path.join(DATA, 'state.json'), TOKEN_FILE = path.join(DATA, 'token');
 if (!fs.existsSync(TOKEN_FILE)) fs.writeFileSync(TOKEN_FILE, crypto.randomBytes(24).toString('hex'));

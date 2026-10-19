@@ -12,13 +12,14 @@ const TAB = 'asktab1';
 fs.mkdirSync(DATA);
 // Seed one shell tab so the daemon restores it instead of starting a default `claude` tab.
 fs.writeFileSync(path.join(DATA, 'state.json'), JSON.stringify({ order: [{ id: TAB, kind: 'bash', name: 'ask-test', color: 'red', cwd: HOME }] }));
-const env = { ...process.env, HOME, USERPROFILE: HOME, CLAUDE_TERMINALS_PORT: String(PORT), CLAUDE_TERMINALS_DATA: DATA };
+// Relative on purpose: the daemon runs from HOME and must hand its tabs the absolute path.
+const env = { ...process.env, HOME, USERPROFILE: HOME, CLAUDE_TERMINALS_PORT: String(PORT), CLAUDE_TERMINALS_DATA: 'data' };
 delete env.CLAUDE_TERMINALS_ID;
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let daemon, log = '';
 function startDaemon() {
-  daemon = spawn(process.execPath, [path.join(ROOT, 'server.js')], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+  daemon = spawn(process.execPath, [path.join(ROOT, 'server.js')], { env, cwd: HOME, stdio: ['ignore', 'pipe', 'pipe'] });
   daemon.stdout.on('data', d => log += d); daemon.stderr.on('data', d => log += d);
 }
 async function stopDaemon() { const d = daemon; const gone = new Promise(r => d.once('exit', r)); d.kill(); await gone; }
@@ -44,11 +45,11 @@ function connectWs() {
   });
 }
 function ctAsk(args, extra = {}) {
-  return spawnSync(process.execPath, [path.join(ROOT, 'bin', 'ct-ask'), ...args], { env: { ...env, ...extra }, encoding: 'utf8' });
+  return spawnSync(process.execPath, [path.join(ROOT, 'bin', 'ct-ask'), ...args], { env: { ...env, CLAUDE_TERMINALS_DATA: DATA, ...extra }, encoding: 'utf8' });
 }
 function mcpCall(name, args, extra = {}) {
   return new Promise((res, rej) => {
-    const p = spawn(process.execPath, [path.join(ROOT, 'mcp.js')], { env: { ...env, ...extra }, stdio: ['pipe', 'pipe', 'inherit'] });
+    const p = spawn(process.execPath, [path.join(ROOT, 'mcp.js')], { env: { ...env, CLAUDE_TERMINALS_DATA: DATA, ...extra }, stdio: ['pipe', 'pipe', 'inherit'] });
     let out = '';
     p.stdout.on('data', d => {
       out += d;
@@ -103,6 +104,13 @@ step('output alone, API input and terminal reports do not clear it', async () =>
   ws.send(JSON.stringify({ t: 'input', id: TAB, d: '\x1b[I' })); // focus report: xterm sends it, the user did not type it
   await sleep(400);
   assert.strictEqual((await tab()).asks, 2);
+});
+step('tabs get the daemon\'s absolute data directory and port', async () => {
+  await api('POST', '/api/input/' + TAB, { text: 'echo "DIR=[$CLAUDE_TERMINALS_DATA] PORT=[$CLAUDE_TERMINALS_PORT]"' });
+  const want = `DIR=[${fs.realpathSync(DATA)}] PORT=[${PORT}]`, alt = `DIR=[${DATA}] PORT=[${PORT}]`;
+  assert.ok(await waitFor(async () => { const o = (await api('GET', '/api/output/' + TAB + '?chars=20000')).body.output; return o.includes(want) || o.includes(alt); }, 10000),
+    'tab env should carry ' + alt);
+  assert.strictEqual((await tab()).asks, 2, 'API input did not clear asks');
 });
 step('typing into the tab over the ws clears it', async () => {
   ws.send(JSON.stringify({ t: 'input', id: TAB, d: 'l', user: true }));
