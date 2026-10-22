@@ -29,8 +29,8 @@ const TOOLS = [
     a => api('POST', '/api/input/' + a.id, { text: a.text, enter: a.enter })],
   ['read_output', 'Read the recent terminal output of a tab (ANSI stripped).', S({ id: str('tab id'), chars: { type: 'number', description: 'max chars, default 4000' } }, ['id']),
     a => api('GET', `/api/output/${a.id}?chars=${a.chars || 4000}`)],
-  ['ask_user', 'Ask the human for something: puts a red count on this tab and on the app\'s Dock/taskbar icon until they type into the tab. Call it whenever you need input, a decision or an approval from them, then wait. summary is one line saying what you need and why; the user will open the tab and ask you for the detail.',
-    S({ summary: str('One line, at most ~200 characters: what you need from the user and why'), session: str('Tab id; defaults to the tab this MCP server runs in ($CLAUDE_TERMINALS_ID)') }, ['summary']),
+  ['ask_user', 'Ask the human a question. It appears as a card at the bottom of this tab in Claude Terminals (full text) and puts a red count on the tab and the Dock/taskbar icon. Use it whenever you need input, a decision or an approval, then wait: the user answers in this session\'s chat, and typing in the tab clears the ask.',
+    S({ summary: str('The question: what you need from the user and why. Up to ~2000 characters; make it self-contained'), session: str('Tab id; defaults to the tab this MCP server runs in ($CLAUDE_TERMINALS_ID)') }, ['summary']),
     a => {
       const session = a.session || process.env.CLAUDE_TERMINALS_ID;
       if (!session) return Promise.resolve({ error: 'not inside a Claude Terminals tab; pass session (a tab id from list_sessions)' });

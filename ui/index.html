@@ -12,6 +12,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:13px "S
 .ib{-webkit-app-region:no-drag;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:5px;color:var(--fg);cursor:pointer;background:none;border:0;font-size:16px}
 .ib:hover{background:#ffffff1a}
 #main{flex:1;display:flex;min-height:0}
+#termcol{flex:1;display:flex;flex-direction:column;min-width:0}
 #terms{flex:1;position:relative;min-width:0;padding:6px 0 0 14px}
 .term{position:absolute;inset:6px 0 0 14px;display:none}
 .term.active{display:block}
@@ -30,6 +31,13 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:13px "S
 .row:hover .acts,.row.sel .acts{display:flex}
 .row .acts .ib{width:20px;height:20px;font-size:13px}
 .row input{flex:1;background:#313131;color:#fff;border:1px solid var(--accent);font:inherit;outline:none;padding:0 3px;height:18px;min-width:0}
+#dock{flex:none;display:none;border-top:1px solid var(--border);background:#1f1f1f;max-height:30%;overflow-y:auto;padding:2px 10px 4px 14px;user-select:text}
+#dock .ask{display:flex;gap:8px;align-items:flex-start;padding:3px 0;line-height:1.4}
+#dock .ask i{flex:none;width:7px;height:7px;border-radius:50%;background:#e51400;margin-top:6px}
+#dock .ask .t{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word;max-height:80px;overflow-y:auto}
+#dock .ask .w{flex:none;color:var(--dim);font-size:11px;margin-top:1px}
+#dock .ask .x{flex:none;color:var(--dim);cursor:pointer;padding:0 4px}
+#dock .ask .x:hover{color:#fff}
 #menu{position:fixed;background:#202020;border:1px solid #454545;border-radius:5px;padding:4px 0;min-width:190px;box-shadow:0 2px 8px #000a;display:none;z-index:10}
 #menu div.mi{padding:4px 22px;cursor:pointer}
 #menu div.mi:hover{background:var(--accent);color:#fff}
@@ -48,7 +56,7 @@ body.mac #titlebar{padding:0 8px 0 80px!important}
  <button class="ib" id="add" title="New Claude session (Ctrl+Shift+`)">+</button>
  <button class="ib" id="more" title="More…">&#8964;</button>
 </div>
-<div id="main"><div id="terms"></div><div id="side"></div></div>
+<div id="main"><div id="termcol"><div id="terms"></div><div id="dock"></div></div><div id="side"></div></div>
 <div id="status"><span class="dot" id="sdot" style="background:#e51400"></span><span id="stxt">connecting…</span></div>
 </div>
 <div id="menu"></div><div id="toast"></div>
@@ -140,8 +148,25 @@ function sync(){
   else if(terms[active]&&!terms[active].attached)select(active);
   renderSide();
 }
+// ---- dock: the active tab's open asks, read-only, at the bottom of the pane. Answer in the session itself; typing clears them. ----
+let dockSig='';
+const when=t=>new Date(t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+function renderDock(){
+  const dock=$('#dock'),s=sessions.find(x=>x.id===active),list=s&&s.asklist||[];
+  const sig=active+'|'+list.map(a=>a.id).join(',');
+  if(sig===dockSig)return;dockSig=sig;
+  dock.innerHTML='';dock.style.display=list.length?'block':'none';
+  for(const a of list){
+    const r=document.createElement('div');r.className='ask';
+    const t=document.createElement('span');t.className='t';t.textContent=a.text;
+    const w=document.createElement('span');w.className='w';w.textContent=when(a.at);
+    const x=document.createElement('span');x.className='x';x.textContent='✕';x.title='Dismiss';x.onclick=()=>send({t:'askDismiss',id:s.id,askId:a.id});
+    r.append(document.createElement('i'),t,w,x);dock.appendChild(r);
+  }
+}
 let renaming=null;
 function renderSide(){
+  renderDock();
   if(renaming&&document.querySelector('#side input'))return;
   const side=$('#side');side.innerHTML='';
   for(const s of sessions){
@@ -161,7 +186,7 @@ function renderSide(){
       const n=document.createElement('span');n.className='name';n.textContent=s.name;n.title=s.name+(s.alive?'':' (exited)')+'\n'+s.cwd;r.appendChild(n);
     }
     if(s.asks>0){const b=document.createElement('span');b.className='badge';b.textContent=s.asks>99?'99+':s.asks;
-      b.title=(s.ask_summary||'Needs you')+(s.ask_at?'\n'+new Date(s.ask_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'')+'\nType in the tab to clear';r.appendChild(b)}
+      b.title=(s.ask_summary||'Needs you')+(s.ask_at?'\n'+new Date(s.ask_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'')+'\nOpen the tab to see it; answer in the session';r.appendChild(b)}
     const a=document.createElement('span');a.className='acts';
     a.innerHTML='<button class="ib" title="Rename (F2)" data-a="ren">✎</button><button class="ib" title="Kill Terminal" data-a="kill">🗑</button>';
     r.appendChild(a);

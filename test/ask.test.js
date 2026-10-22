@@ -118,6 +118,19 @@ step('typing into the tab over the ws clears it', async () => {
   assert.ok(await waitFor(() => ws.last.find(s => s.id === TAB).asks === 0, 3000), 'ws clients saw the reset');
   ws.send(JSON.stringify({ t: 'input', id: TAB, d: '\x7f', user: true }));
 });
+step('each ask keeps its full text and id in asklist, and can be dismissed alone', async () => {
+  const long = 'Line one\nLine two ' + 'z'.repeat(400);
+  const a = (await api('POST', '/api/ask', { session: TAB, summary: long })).body;
+  const b = (await api('POST', '/api/ask', { session: TAB, summary: 'second' })).body;
+  assert.ok(a.id && b.id && a.id !== b.id, 'ask ids returned');
+  assert.ok(a.ask_summary.length <= 200 && !/\n/.test(a.ask_summary), 'summary stays one short line');
+  let t = await tab();
+  assert.strictEqual(t.asklist.length, 2); assert.strictEqual(t.asklist[0].text, long, 'full text kept, newlines included');
+  assert.strictEqual((await api('POST', '/api/ask/dismiss', { session: TAB, id: a.id })).body.asks, 1);
+  assert.strictEqual((await api('POST', '/api/ask/dismiss', { session: TAB, id: a.id })).status, 404);
+  t = await tab(); assert.deepStrictEqual(t.asklist.map(x => x.text), ['second']);
+  await api('POST', '/api/ask/clear', { session: TAB });
+});
 step('the clear route resets it', async () => {
   await api('POST', '/api/ask', { session: TAB, summary: 'again' });
   const r = await api('POST', '/api/ask/clear', { session: TAB });
