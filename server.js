@@ -177,7 +177,7 @@ function restart(s) {
   }, 300);
 }
 // ---- asks: a session raises a question for its user. Each open ask is a card in the tab's dock (read-only) and adds to
-// the tab's red count. The user answers in the session itself: typing into the tab clears its asks, or Dismiss a card. ----
+// the tab's red count. The user answers in the session itself: sending a message in the tab clears its asks, or Dismiss a card. ----
 const ASK_MAX = 200, ASK_TEXT_MAX = 2000;
 const totalAsks = () => [...sessions.values()].reduce((n, s) => n + (s.meta.asks || 0), 0);
 const oneLine = t => { t = t.replace(/\s+/g, ' ').trim(); return t.length > ASK_MAX ? t.slice(0, ASK_MAX - 1) + '\u2026' : t; };
@@ -198,6 +198,9 @@ function clearAsks(s) {
   if (!s.meta.asklist.length) return;
   s.meta.asklist = []; changed(s);
 }
+// Enter sends \r. Shift+Enter (\x1b\r) is a newline in the prompt, and a newline inside a bracketed paste is pasted text.
+const PASTE = /\x1b\[200~[\s\S]*?(?:\x1b\[201~|$)/g;
+const isSubmit = d => /(?:^|[^\x1b])\r/.test(String(d).replace(PASTE, ''));
 const askReply = (s, a) => ({ session: s.meta.id, ...(a ? { id: a.id } : {}), asks: s.meta.asks, ask_summary: s.meta.ask_summary, ask_at: s.meta.ask_at, total: totalAsks() });
 
 const ANSI = /\x1b\[[0-9;?]*[ -\/]*[@-~]|\x1b\][^\x07\x1b]*(\x07|\x1b\\)|\x1b[()][A-Za-z0-9]/g;
@@ -284,9 +287,9 @@ wss.on('connection', ws => {
       case 'attach': if (s) { s.clients.add(ws); ws.send(JSON.stringify({ t: 'replay', id: s.meta.id, d: s.buf })); } break;
       case 'dbg': fs.appendFileSync(path.join(DATA,'dbg.log'), JSON.stringify(m) + String.fromCharCode(10)); break;
       case 'detach': if (s) s.clients.delete(ws); break;
-      // user: the UI saw a keystroke or paste in the focused tab, so the user is attending to it; terminal reports and
-      // API input from other sessions carry no flag and leave the asks alone.
-      case 'input': if (s && s.pty) { s.pty.write(m.d); if (m.user) clearAsks(s); } break;
+      // user: the UI saw a keystroke or paste in the focused tab; terminal reports and API input from other sessions carry
+      // no flag. Only the user sending a message (Enter) clears the asks, not every keystroke while they type it.
+      case 'input': if (s && s.pty) { s.pty.write(m.d); if (m.user && isSubmit(m.d)) clearAsks(s); } break;
       case 'askDismiss': if (s) removeAsk(s, String(m.askId || '')); break;
       case 'resize': if (s && s.pty && m.cols > 1 && m.rows > 1) { s.cols = m.cols; s.rows = m.rows; try { s.pty.resize(m.cols, m.rows); } catch {} } break;
       case 'create': create(m.opts || {}); break;

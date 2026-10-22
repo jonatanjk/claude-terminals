@@ -107,7 +107,7 @@ function makeTerm(s){
   const xt=new Terminal({theme:THEME,fontFamily:'"Cascadia Mono",Consolas,"Courier New",monospace',fontSize:14,cursorBlink:true,scrollback:10000,allowProposedApi:true,macOptionIsMeta:true});
   const fit=new FitAddon.FitAddon();xt.loadAddon(fit);xt.open(el);
   try{const gl=new WebglAddon.WebglAddon();gl.onContextLoss(()=>gl.dispose());xt.loadAddon(gl)}catch(e){}
-  let userAt=0; // last keystroke or paste in this tab: only then is input the user's, which clears the tab's asks
+  let userAt=0; // last keystroke or paste in this tab: only then is input the user's; the daemon clears the asks when it is Enter
   el.addEventListener('paste',()=>{userAt=Date.now()},true);
   xt.attachCustomKeyEventHandler(ev=>{
     if(ev.type!=='keydown')return true;
@@ -148,7 +148,7 @@ function sync(){
   else if(terms[active]&&!terms[active].attached)select(active);
   renderSide();
 }
-// ---- dock: the active tab's open asks, read-only, at the bottom of the pane. Answer in the session itself; typing clears them. ----
+// ---- dock: the active tab's open asks, read-only, at the bottom of the pane. Answer in the session itself; sending a message clears them. ----
 let dockSig='';
 const when=t=>new Date(t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
 function renderDock(){

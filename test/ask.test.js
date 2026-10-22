@@ -1,4 +1,4 @@
-// Ask badges: a session raises an ask, the count and summary are stored and broadcast, typing in the tab clears it.
+// Ask badges: a session raises an ask, the count and summary are stored and broadcast, sending a message in the tab clears it.
 // Runs a throwaway daemon on a random port with its own data directory and home. Run with `npm test`.
 const assert = require('assert');
 const { spawn, spawnSync } = require('child_process'), fs = require('fs'), os = require('os'), path = require('path'), http = require('http');
@@ -112,11 +112,14 @@ step('tabs get the daemon\'s absolute data directory and port', async () => {
     'tab env should carry ' + alt);
   assert.strictEqual((await tab()).asks, 2, 'API input did not clear asks');
 });
-step('typing into the tab over the ws clears it', async () => {
-  ws.send(JSON.stringify({ t: 'input', id: TAB, d: 'l', user: true }));
-  assert.ok(await waitFor(async () => (await tab()).asks === 0, 3000), 'asks reset after the user typed');
+step('typing, Shift+Enter and a pasted newline do not clear it; sending the message does', async () => {
+  const user = d => ws.send(JSON.stringify({ t: 'input', id: TAB, d, user: true }));
+  user('l'); user('\x1b\r'); user('\x1b[200~echo PASTED\recho TWO\x1b[201~');
+  await sleep(400);
+  assert.strictEqual((await tab()).asks, 2, 'asks stay open while the user is still typing');
+  user('\x15\r'); // Ctrl+U drops the half-typed line, Enter sends
+  assert.ok(await waitFor(async () => (await tab()).asks === 0, 3000), 'asks reset after the user sent a message');
   assert.ok(await waitFor(() => ws.last.find(s => s.id === TAB).asks === 0, 3000), 'ws clients saw the reset');
-  ws.send(JSON.stringify({ t: 'input', id: TAB, d: '\x7f', user: true }));
 });
 step('each ask keeps its full text and id in asklist, and can be dismissed alone', async () => {
   const long = 'Line one\nLine two ' + 'z'.repeat(400);
