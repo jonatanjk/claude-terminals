@@ -127,8 +127,11 @@ function create(o = {}, restoring = false) {
     cwd: (o.cwd || os.homedir()).replace(/\\/g, '/'),
     claudeSessionId: kind === 'claude' ? (o.resumeId || o.claudeSessionId || crypto.randomUUID()) : undefined,
     args: o.args,
-    asks: +o.asks || 0, ask_summary: o.ask_summary || '', ask_at: o.ask_at || 0,
+    asks: 0, ask_summary: '', ask_at: 0,
+    // asklist: the open questions, newest last: {id, text, at}
+    asklist: Array.isArray(o.asklist) ? o.asklist : (+o.asks > 0 ? [{ id: crypto.randomUUID().slice(0, 8), text: o.ask_summary || 'Needs you', at: o.ask_at || Date.now() }] : []),
   };
+  recount(meta);
   let startup;
   if (kind === 'claude') {
     startup = claudeCmd({ ...meta, prompt: restoring ? undefined : o.prompt }, restoring || !!o.resumeId);
@@ -173,22 +176,29 @@ function restart(s) {
     broadcast({ t: 'sessions', sessions: listMeta() });
   }, 300);
 }
-// ---- asks: a session asks for its user; the tab and the Dock show a red count until the user types into it ----
-const ASK_MAX = 200;
+// ---- asks: a session raises a question for its user. Each open ask is a card in the tab's dock (read-only) and adds to
+// the tab's red count. The user answers in the session itself: typing into the tab clears its asks, or Dismiss a card. ----
+const ASK_MAX = 200, ASK_TEXT_MAX = 2000;
 const totalAsks = () => [...sessions.values()].reduce((n, s) => n + (s.meta.asks || 0), 0);
-function raiseAsk(s, summary) {
-  const t = summary.replace(/\s+/g, ' ').trim();
-  s.meta.asks = (s.meta.asks || 0) + 1;
-  s.meta.ask_summary = t.length > ASK_MAX ? t.slice(0, ASK_MAX - 1) + '\u2026' : t;
-  s.meta.ask_at = Date.now();
-  save(); broadcast({ t: 'sessions', sessions: listMeta() });
+const oneLine = t => { t = t.replace(/\s+/g, ' ').trim(); return t.length > ASK_MAX ? t.slice(0, ASK_MAX - 1) + '\u2026' : t; };
+function recount(m) { // keep the summary fields (asks, ask_summary, ask_at) in step with the list
+  const l = m.asklist, last = l[l.length - 1];
+  m.asks = l.length; m.ask_summary = last ? oneLine(last.text) : ''; m.ask_at = last ? last.at : 0;
+}
+const changed = s => { recount(s.meta); save(); broadcast({ t: 'sessions', sessions: listMeta() }); };
+function raiseAsk(s, text) {
+  const a = { id: crypto.randomUUID().slice(0, 8), text: text.trim().slice(0, ASK_TEXT_MAX), at: Date.now() };
+  s.meta.asklist.push(a); changed(s); return a;
+}
+function removeAsk(s, id) {
+  const i = s.meta.asklist.findIndex(a => a.id === id); if (i < 0) return false;
+  s.meta.asklist.splice(i, 1); changed(s); return true;
 }
 function clearAsks(s) {
-  if (!s.meta.asks && !s.meta.ask_summary) return;
-  s.meta.asks = 0; s.meta.ask_summary = ''; s.meta.ask_at = 0;
-  save(); broadcast({ t: 'sessions', sessions: listMeta() });
+  if (!s.meta.asklist.length) return;
+  s.meta.asklist = []; changed(s);
 }
-const askReply = s => ({ session: s.meta.id, asks: s.meta.asks, ask_summary: s.meta.ask_summary, ask_at: s.meta.ask_at, total: totalAsks() });
+const askReply = (s, a) => ({ session: s.meta.id, ...(a ? { id: a.id } : {}), asks: s.meta.asks, ask_summary: s.meta.ask_summary, ask_at: s.meta.ask_at, total: totalAsks() });
 
 const ANSI = /\x1b\[[0-9;?]*[ -\/]*[@-~]|\x1b\][^\x07\x1b]*(\x07|\x1b\\)|\x1b[()][A-Za-z0-9]/g;
 const strip = s => s.replace(ANSI, '');
@@ -230,13 +240,14 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/sessions') return json(res, 200, listMeta());
     if (p === '/api/history') return json(res, 200, history(+u.searchParams.get('limit') || 30));
     if (p === '/api/open') return json(res, 200, publicMeta(create(b)));
-    if (p === '/api/ask' || p === '/api/ask/clear') {
+    if (p === '/api/ask' || p === '/api/ask/clear' || p === '/api/ask/dismiss') {
       if (req.method !== 'POST') return json(res, 405, { error: 'POST only' });
       const s = sessions.get(String(b.session || ''));
       if (!s) return json(res, 404, { error: 'no such session' });
       if (p === '/api/ask/clear') { clearAsks(s); return json(res, 200, askReply(s)); }
-      if (typeof b.summary !== 'string' || !b.summary.trim()) return json(res, 400, { error: 'summary (one line: what you need and why) is required' });
-      raiseAsk(s, b.summary); return json(res, 200, askReply(s));
+      if (p === '/api/ask/dismiss') { if (!removeAsk(s, String(b.id || ''))) return json(res, 404, { error: 'no such ask' }); return json(res, 200, askReply(s)); }
+      if (typeof b.summary !== 'string' || !b.summary.trim()) return json(res, 400, { error: 'summary (what you need and why) is required' });
+      return json(res, 200, askReply(s, raiseAsk(s, b.summary)));
     }
     const m = p.match(/^\/api\/(close|rename|input|output|restart)\/([\w-]+)$/);
     if (m) {
@@ -276,6 +287,7 @@ wss.on('connection', ws => {
       // user: the UI saw a keystroke or paste in the focused tab, so the user is attending to it; terminal reports and
       // API input from other sessions carry no flag and leave the asks alone.
       case 'input': if (s && s.pty) { s.pty.write(m.d); if (m.user) clearAsks(s); } break;
+      case 'askDismiss': if (s) removeAsk(s, String(m.askId || '')); break;
       case 'resize': if (s && s.pty && m.cols > 1 && m.rows > 1) { s.cols = m.cols; s.rows = m.rows; try { s.pty.resize(m.cols, m.rows); } catch {} } break;
       case 'create': create(m.opts || {}); break;
       case 'close': kill(m.id); break;

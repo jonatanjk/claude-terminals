@@ -59,7 +59,7 @@ On macOS, Ctrl+C and Ctrl+V go straight to the terminal (interrupt, and Claude C
 
 ## Ask badges
 
-A Claude session decides when it needs you (an approval, a decision, a credential, an answer) and raises an ask with a one-line summary. You see a red count next to that tab in the session list, the total on the Dock icon (macOS), taskbar overlay (Windows) or launcher badge (Linux), and the window title becomes `(n) Claude Terminals`. Hover the pill for the latest summary, open the tab and ask the session what it needs.
+A Claude session decides when it needs you (an approval, a decision, a credential, an answer) and raises an ask with a one-line summary. You see a red count next to that tab in the session list, the total on the Dock icon (macOS), taskbar overlay (Windows) or launcher badge (Linux), and the window title becomes `(n) Claude Terminals`. Open the tab and each open ask is a read-only line in a slim strip at the bottom of the pane (full text, time, ✕ to dismiss). There is no reply box: answer in the session's own chat, and typing into the tab clears its asks.
 
 **Clear rule.** A tab's asks reset to 0 when you type (or paste) into that tab while it is the focused tab. Output alone does not clear them, nor does selecting the tab, nor input sent by another session through `send_input` or `/api/input`. `ct-ask --clear` and `/api/ask/clear` clear them explicitly. Counts survive a daemon restart (they are stored with the tab in `state.json`).
 
@@ -80,8 +80,9 @@ bin/ct-ask --clear                                             # prints: asks cl
 |---|---|---|
 | `POST /api/ask` | `{"session": "<tab id>", "summary": "<one line>"}` | Adds one ask, stores the summary (whitespace collapsed, cut to 200 characters) and its time. `200 {session, asks, ask_summary, ask_at, total}`; `400` without a summary; `404` for an unknown tab; `401` for a bad token |
 | `POST /api/ask/clear` | `{"session": "<tab id>"}` | Resets the tab's asks to 0 |
+| `POST /api/ask/dismiss` | `{"session": "<tab id>", "id": "<ask id>"}` | Removes one ask; `404` for an unknown ask id |
 
-`GET /api/sessions` includes `asks`, `ask_summary` and `ask_at` for each tab.
+`POST /api/ask` also returns the new ask's `id` and keeps its full text (up to 2000 characters). `GET /api/sessions` includes `asks`, `ask_summary`, `ask_at` and the full `asklist` (`{id, text, at}`) for each tab.
 
 **Raise an ask whenever Claude Code is waiting for you.** Claude Code's `Notification` hook fires when it needs your permission or has been idle waiting for input. To turn those into asks, add something like this to `~/.claude/settings.json` (adjust the path; the guard keeps it silent in sessions outside Claude Terminals):
 
