@@ -53,6 +53,9 @@ function startPty(s, startup) {
     CLAUDE_TERMINALS_PORT: String(PORT), CLAUDE_TERMINALS_DATA: DATA }; // so ct-ask / mcp.js in the tab reach this daemon
   for (const k of Object.keys(env)) if (/^(CLAUDECODE|CLAUDE_CODE_|CLAUDE_AGENT|MCP_)/.test(k) && k !== 'CLAUDE_CODE_GIT_BASH_PATH') delete env[k];
   env.CLAUDE_CODE_FORCE_SESSION_PERSISTENCE = '1';
+  // Drop the identity of whatever terminal launched the daemon. Inherited TERM_PROGRAM=Apple_Terminal makes Claude Code
+  // AppleScript Terminal.app for its idle notification, which launches Terminal.app with a stray window.
+  for (const k of ['TERM_PROGRAM', 'TERM_PROGRAM_VERSION', 'TERM_SESSION_ID']) delete env[k];
   const p = pty.spawn(SHELL.file, SHELL.args, { name: 'xterm-256color', cwd: m.cwd, cols: s.cols, rows: s.rows, env });
   s.pty = p;
   p.onData(d => {

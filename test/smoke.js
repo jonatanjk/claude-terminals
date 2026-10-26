@@ -6,9 +6,13 @@ const { pickShell } = require('../shell');
 const PORT = 47900 + Math.floor(Math.random() * 90);
 const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-smoke-'));
 // Set the data directory explicitly: a tab exports its own daemon's CLAUDE_TERMINALS_DATA, which must not leak in here.
-const env = { ...process.env, HOME, USERPROFILE: HOME, CLAUDE_TERMINALS_PORT: String(PORT), CLAUDE_TERMINALS_DATA: path.join(HOME, '.claude-terminals') };
-// Arithmetic, so the echoed command line itself can't match CT_OK_42.
-const PROBE = pickShell({ env }).flavour === 'powershell' ? 'echo ("CT_OK_" + 6*7)' : 'echo CT_OK_$((6*7))';
+// Start the daemon as if launched from Terminal.app, to check a tab does not inherit its terminal identity.
+const env = { ...process.env, HOME, USERPROFILE: HOME, CLAUDE_TERMINALS_PORT: String(PORT), CLAUDE_TERMINALS_DATA: path.join(HOME, '.claude-terminals'),
+  TERM_PROGRAM: 'Apple_Terminal', TERM_PROGRAM_VERSION: '470.2' };
+// Arithmetic, so the echoed command line itself can't match CT_OK_42; CT_TP=none. only appears if TERM_PROGRAM is unset.
+const PROBE = pickShell({ env }).flavour === 'powershell'
+  ? 'echo ("CT_OK_" + 6*7); echo ("CT_TP=" + $(if ($env:TERM_PROGRAM) { $env:TERM_PROGRAM } else { "none" }) + ".")'
+  : 'echo CT_OK_$((6*7)); echo "CT_TP=${TERM_PROGRAM:-none}."';
 const daemon = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env, stdio: ['ignore', 'pipe', 'pipe'] });
 let log = '';
 daemon.stdout.on('data', d => log += d); daemon.stderr.on('data', d => log += d);
@@ -34,15 +38,18 @@ async function waitFor(fn, ms) {
     if (!await waitFor(() => api('GET', '/api/sessions').then(Array.isArray), 10000)) throw new Error('daemon did not start');
     const tab = await api('POST', '/api/open', { kind: 'bash', name: 'smoke' });
     if (!tab.id) throw new Error('open failed: ' + JSON.stringify(tab));
+    let output = '';
     const marker = await waitFor(async () => {
       await api('POST', '/api/input/' + tab.id, { text: PROBE });
       await sleep(750);
-      const { output = '' } = await api('GET', '/api/output/' + tab.id + '?chars=20000');
-      return /CT_OK_42/.test(output);
+      ({ output = '' } = await api('GET', '/api/output/' + tab.id + '?chars=20000'));
+      return /CT_OK_42/.test(output) && /CT_TP=\w+\./.test(output);
     }, 15000);
     const [info] = (await api('GET', '/api/sessions')).filter(s => s.id === tab.id);
     if (!info || !info.alive) throw new Error('shell tab is not alive');
     if (!marker) throw new Error('shell did not run the command');
+    // Claude Code treats TERM_PROGRAM=Apple_Terminal as Terminal.app and AppleScripts it, which launches Terminal.app.
+    if (!/CT_TP=none\./.test(output)) throw new Error('tab inherited TERM_PROGRAM: ' + (output.match(/CT_TP=\w+\./) || [])[0]);
     ok = true;
     console.log('PASS: shell tab started and ran a command on ' + process.platform);
   } catch (e) {
