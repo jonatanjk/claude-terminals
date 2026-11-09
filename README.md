@@ -16,7 +16,7 @@ A small Electron app that keeps several [Claude Code](https://claude.com/claude-
   | Tool | Purpose |
   |---|---|
   | `list_sessions` | List tabs (id, name, colour, cwd, Claude session id, alive) |
-  | `open_session` | Open a Claude or bash tab (optional cwd, resume id, first prompt) |
+  | `open_session` | Open a Claude or bash tab (optional cwd, resume id, first prompt; `background: true` lists it without taking focus) |
   | `close_session` | Close a tab (the conversation stays resumable) |
   | `rename_session` | Rename and/or recolour a tab |
   | `restart_session` | Restart a tab's shell; Claude tabs resume their conversation |

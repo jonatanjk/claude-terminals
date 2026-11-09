@@ -140,7 +140,9 @@ let firstSync=true;
 function sync(){
   const ids=new Set(sessions.map(s=>s.id));
   let fresh=null;
-  for(const s of sessions)if(!terms[s.id]){makeTerm(s);fresh=s.id}
+  // Background tabs (session notes, scheduled jobs) appear in the list without taking focus.
+  const isBg=s=>!!s.background||/^\u25e6 /.test(s.name||'');
+  for(const s of sessions)if(!terms[s.id]){makeTerm(s);if(!isBg(s))fresh=s.id}
   if(fresh&&!firstSync){active=fresh}
   firstSync=false;
   for(const id in terms)if(!ids.has(id)){terms[id].xt.dispose();terms[id].el.remove();delete terms[id]}
