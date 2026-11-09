@@ -50,6 +50,11 @@ async function waitFor(fn, ms) {
     if (!marker) throw new Error('shell did not run the command');
     // Claude Code treats TERM_PROGRAM=Apple_Terminal as Terminal.app and AppleScripts it, which launches Terminal.app.
     if (!/CT_TP=none\./.test(output)) throw new Error('tab inherited TERM_PROGRAM: ' + (output.match(/CT_TP=\w+\./) || [])[0]);
+    // A background tab keeps its flag, so the UI can list it without taking focus; a normal tab has none.
+    const bg = await api('POST', '/api/open', { kind: 'bash', name: 'smoke-bg', background: true });
+    const listed = (await api('GET', '/api/sessions')).find(s => s.id === bg.id);
+    if (bg.background !== true || !listed || listed.background !== true) throw new Error('background flag not kept: ' + JSON.stringify(listed));
+    if (info.background) throw new Error('a normal tab was marked background');
     ok = true;
     console.log('PASS: shell tab started and ran a command on ' + process.platform);
   } catch (e) {

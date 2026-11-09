@@ -130,6 +130,7 @@ function create(o = {}, restoring = false) {
     cwd: (o.cwd || os.homedir()).replace(/\\/g, '/'),
     claudeSessionId: kind === 'claude' ? (o.resumeId || o.claudeSessionId || crypto.randomUUID()) : undefined,
     args: o.args,
+    background: o.background ? true : undefined, // opened without taking focus in the UI
     asks: 0, ask_summary: '', ask_at: 0,
     // asklist: the open questions, newest last: {id, text, at}
     asklist: Array.isArray(o.asklist) ? o.asklist : (+o.asks > 0 ? [{ id: crypto.randomUUID().slice(0, 8), text: o.ask_summary || 'Needs you', at: o.ask_at || Date.now() }] : []),
