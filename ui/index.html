@@ -106,7 +106,7 @@ function makeTerm(s){
   const el=document.createElement('div');el.className='term';el.dataset.id=s.id;$('#terms').appendChild(el);
   // Links open in the default browser: the desktop app routes window.open to the OS. Plain URLs need the web-links
   // addon; OSC 8 hyperlinks (which Claude Code prints) would otherwise stop at xterm's confirm() prompt.
-  const openLink=(e,uri)=>window.open(uri,'_blank');
+  const openLink=(e,uri)=>window.open(uri,'_blank','noopener');
   const xt=new Terminal({theme:THEME,fontFamily:'"Cascadia Mono",Consolas,"Courier New",monospace',fontSize:14,cursorBlink:true,scrollback:10000,allowProposedApi:true,macOptionIsMeta:true,linkHandler:{activate:openLink}});
   const fit=new FitAddon.FitAddon();xt.loadAddon(fit);if(window.WebLinksAddon)xt.loadAddon(new WebLinksAddon.WebLinksAddon(openLink));xt.open(el);
   try{const gl=new WebglAddon.WebglAddon();gl.onContextLoss(()=>gl.dispose());xt.loadAddon(gl)}catch(e){}

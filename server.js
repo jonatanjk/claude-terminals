@@ -233,7 +233,10 @@ const server = http.createServer(async (req, res) => {
       .replace("'__SHELL_LABEL__'", JSON.stringify(SHELL.label));
     res.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' }); return res.end(html);
   }
-  if (ASSETS[p]) { res.writeHead(200, { 'content-type': MIME[path.extname(p)] }); return fs.createReadStream(ASSETS[p]).pipe(res); }
+  if (ASSETS[p]) {
+    if (!fs.existsSync(ASSETS[p])) return json(res, 404, {}); // a dependency not installed yet: the UI loads without it
+    res.writeHead(200, { 'content-type': MIME[path.extname(p)] }); return fs.createReadStream(ASSETS[p]).pipe(res);
+  }
   if (p.startsWith('/ui/')) {
     const f = path.join(__dirname, p);
     if (!f.startsWith(path.join(__dirname, 'ui')) || !fs.existsSync(f)) return json(res, 404, {});
