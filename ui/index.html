@@ -60,7 +60,7 @@ body.mac #titlebar{padding:0 8px 0 80px!important}
 <div id="status"><span class="dot" id="sdot" style="background:#e51400"></span><span id="stxt">connecting…</span></div>
 </div>
 <div id="menu"></div><div id="toast"></div>
-<script src="/xterm.js"></script><script src="/addon-fit.js"></script><script src="/addon-webgl.js"></script>
+<script src="/xterm.js"></script><script src="/addon-fit.js"></script><script src="/addon-webgl.js"></script><script src="/addon-web-links.js"></script>
 <script>
 const TOKEN='__TOKEN__';
 const PLATFORM='__PLATFORM__',HOME_DIR='__HOME__',SHELL_LABEL='__SHELL_LABEL__',IS_WIN=PLATFORM==='win32',IS_MAC=PLATFORM==='darwin';
@@ -104,8 +104,11 @@ const REPORT=/^\x1b(?:\[(?:I|O|\d*n|\d+;\d+R|[?>=]?[\d;]*c|\??[\d;]*\$y)|\][^\x0
 const MODIFIER=new Set(['Shift','Control','Alt','Meta','CapsLock','Fn','OS','Super','Hyper']);
 function makeTerm(s){
   const el=document.createElement('div');el.className='term';el.dataset.id=s.id;$('#terms').appendChild(el);
-  const xt=new Terminal({theme:THEME,fontFamily:'"Cascadia Mono",Consolas,"Courier New",monospace',fontSize:14,cursorBlink:true,scrollback:10000,allowProposedApi:true,macOptionIsMeta:true});
-  const fit=new FitAddon.FitAddon();xt.loadAddon(fit);xt.open(el);
+  // Links open in the default browser: the desktop app routes window.open to the OS. Plain URLs need the web-links
+  // addon; OSC 8 hyperlinks (which Claude Code prints) would otherwise stop at xterm's confirm() prompt.
+  const openLink=(e,uri)=>window.open(uri,'_blank','noopener');
+  const xt=new Terminal({theme:THEME,fontFamily:'"Cascadia Mono",Consolas,"Courier New",monospace',fontSize:14,cursorBlink:true,scrollback:10000,allowProposedApi:true,macOptionIsMeta:true,linkHandler:{activate:openLink}});
+  const fit=new FitAddon.FitAddon();xt.loadAddon(fit);if(window.WebLinksAddon)xt.loadAddon(new WebLinksAddon.WebLinksAddon(openLink));xt.open(el);
   try{const gl=new WebglAddon.WebglAddon();gl.onContextLoss(()=>gl.dispose());xt.loadAddon(gl)}catch(e){}
   let userAt=0; // last keystroke or paste in this tab: only then is input the user's; the daemon clears the asks when it is Enter
   el.addEventListener('paste',()=>{userAt=Date.now()},true);

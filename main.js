@@ -33,7 +33,8 @@ app.whenReady().then(async () => {
     : { titleBarStyle: 'hidden', titleBarOverlay: { color: "#181818", symbolColor: "#cccccc", height: 35 } };
   const w = new BrowserWindow({ width: 1400, height: 800, backgroundColor: '#181818', title: 'Claude Terminals', autoHideMenuBar: true, ...frame,
     webPreferences: { preload: path.join(__dirname, 'preload.js') } });
-  w.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
+  // Only web and mail links leave the app: a terminal can print any URL, and openExternal would launch any scheme.
+  w.webContents.setWindowOpenHandler(({ url }) => { if (/^(https?|mailto):/i.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   w.maximize();
   w.loadURL(URL_);
   w.webContents.on('before-input-event', (e, i) => {
