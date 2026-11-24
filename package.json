@@ -8,13 +8,19 @@
   "daemon": "node server.js",
   "test": "node test/shell.test.js && node test/smoke.js && node test/ask.test.js"
  },
- "keywords": ["claude-code","mcp","electron","terminal"],
+ "keywords": [
+  "claude-code",
+  "mcp",
+  "electron",
+  "terminal"
+ ],
  "author": "Jonatan Kawalek",
  "license": "MIT",
  "type": "commonjs",
  "dependencies": {
   "@homebridge/node-pty-prebuilt-multiarch": "^0.14.1",
   "@xterm/addon-fit": "^0.11.0",
+  "@xterm/addon-web-links": "^0.12.0",
   "@xterm/addon-webgl": "^0.19.0",
   "@xterm/xterm": "^6.0.0",
   "electron": "^44.5.1",

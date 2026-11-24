@@ -217,6 +217,7 @@ const ASSETS = {
   '/xterm.css': path.join(NM, '@xterm/xterm/css/xterm.css'),
   '/addon-fit.js': path.join(NM, '@xterm/addon-fit/lib/addon-fit.js'),
   '/addon-webgl.js': path.join(NM, '@xterm/addon-webgl/lib/addon-webgl.js'),
+  '/addon-web-links.js': path.join(NM, '@xterm/addon-web-links/lib/addon-web-links.js'),
 };
 const authed = (req, u) => req.headers['x-token'] === TOKEN || u.searchParams.get('token') === TOKEN;
 function body(req) { return new Promise(r => { let b = ''; req.on('data', d => b += d); req.on('end', () => { try { r(JSON.parse(b || '{}')); } catch { r({}); } }); }); }
